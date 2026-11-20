@@ -87,18 +87,18 @@
 const GAS_URL  = 'https://script.google.com/macros/s/AKfycbxabR1SBUjABw7bPRBLJ0_OUMTfjBLPoLjHfl9wCTY3IGli3OOdpnv-yqjsykJ11HG2/exec';
 const POLL_MS  = 5000;   // 每 5 秒更新
 
-// 10 張字卡：名稱、包含的類別、固定 Total、Target（照 Makara 表）
+// 10 張字卡：名稱、包含的類別、固定 Total、Target、Minimum（照 Makara Targets 設定）
 const GROUPS = [
-  { name:'TR',        cats:['TR'],         total:90,  target:81 },
-  { name:'RTG',       cats:['RTG'],        total:38,  target:33 },
-  { name:'FL',        cats:['FL'],         total:13,  target:11 },
-  { name:'PPG',       cats:['PPG'],        total:9,   target:8  },
-  { name:'S/P & SSH', cats:['SP'],         total:30,  target:28 },
-  { name:'ARMGC',     cats:['ARMGC'],      total:4,   target:3  },
-  { name:'CH',        cats:['CH'],         total:110, target:81 },
-  { name:'GC',        cats:['GC'],         total:13,  target:12 },
-  { name:'R/S',       cats:['RS'],         total:5,   target:2  },
-  { name:'SL & ESL',  cats:['SL','ESL'],   total:13,  target:9  }
+  { name:'TR',        cats:['TR'],         total:90,  target:81, min:78 },
+  { name:'RTG',       cats:['RTG'],        total:38,  target:33, min:30 },
+  { name:'FL',        cats:['FL'],         total:13,  target:11, min:11 },
+  { name:'PPG',       cats:['PPG'],        total:9,   target:8,  min:7  },
+  { name:'S/P & SSH', cats:['SP'],         total:30,  target:28, min:26 },
+  { name:'ARMGC',     cats:['ARMGC'],      total:4,   target:3,  min:3  },
+  { name:'CH',        cats:['CH'],         total:110, target:81, min:78 },
+  { name:'GC',        cats:['GC'],         total:13,  target:12, min:12 },
+  { name:'R/S',       cats:['RS'],         total:5,   target:2,  min:2  },
+  { name:'SL & ESL',  cats:['SL','ESL'],   total:13,  target:9,  min:9  }
 ];
 
 // 6 種狀態（Planned Disposal 等其他狀態不顯示）
@@ -165,11 +165,12 @@ function buildCards(){
       <div class="ratio" id="r${i}">– / ${g.target}</div>
     </section>`).join('');
 
-  // 進度條底色：0 → Target 紅到黃漸層，Target → Total 綠色
+  // 進度條底色：0 → Minimum 紅到橘漸層，Minimum → Target 黃，Target → Total 綠
   GROUPS.forEach((g, i) => {
+    const m = Math.min(100, g.min / g.total * 100);
     const t = Math.min(100, g.target / g.total * 100);
     document.getElementById('bar' + i).style.background =
-      `linear-gradient(90deg,#e03a2f 0%,#ef8a1f ${t*0.6}%,#f2b51d ${t}%,#2ea84a ${t}%,#2ea84a 100%)`;
+      `linear-gradient(90deg,#e03a2f 0%,#ef8a1f ${m*0.75}%,#f0a01c ${m}%,#f5cf3a ${m}%,#f5cf3a ${t}%,#2ea84a ${t}%,#2ea84a 100%)`;
   });
 
   if (lastCounts) render(lastCounts, true);
@@ -201,10 +202,9 @@ function render(counts, noFlash){
     });
 
     const ok   = c.avail + c.run;
-    const rate = ok / g.target;
     const card = document.getElementById('card' + i);
     card.classList.remove('red','yel','grn');
-    card.classList.add(rate >= 1 ? 'grn' : 'red');
+    card.classList.add(ok >= g.target ? 'grn' : ok >= g.min ? 'yel' : 'red');
     document.getElementById('mk' + i).style.left = Math.min(100, ok / g.total * 100) + '%';
     document.getElementById('r' + i).textContent = `${ok} / ${g.target}`;
   });
