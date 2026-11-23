@@ -249,6 +249,20 @@ async function poll(){
   }
 }
 
+// 跟著面板電腦的節奏拿資料：下次 = 面板最後送出時間 + 30 秒 + 2 秒緩衝
+// 新資料該到卻還沒到 → 4 秒後再試；面板超過 1 分鐘沒送（可能當機）→ 改回固定 30 秒
+async function loop(){
+  await poll();
+  let delay = POLL_MS;
+  if (dataAt && !failed) {
+    const age  = Date.now() - dataAt.getTime();
+    const next = POLL_MS + 2000 - age;
+    if (next > 1000)      delay = Math.min(next, POLL_MS + 2000);
+    else if (age < 60000) delay = 4000;
+  }
+  setTimeout(loop, delay);
+}
+
 function tick(){
   document.getElementById('clock').textContent =
     new Date().toLocaleTimeString('es-PA', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -260,7 +274,7 @@ document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click
 
 buildCards();
 tick(); setInterval(tick, 1000);
-poll(); setInterval(poll, POLL_MS);
+loop();
 </script>
 </body>
 </html>
