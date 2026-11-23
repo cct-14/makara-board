@@ -85,7 +85,8 @@
 // 設定區
 // ============================================================
 const GAS_URL  = 'https://script.google.com/macros/s/AKfycbxabR1SBUjABw7bPRBLJ0_OUMTfjBLPoLjHfl9wCTY3IGli3OOdpnv-yqjsykJ11HG2/exec';
-const POLL_MS  = 5000;   // 每 5 秒更新
+const POLL_MS  = 30000;  // 每 30 秒更新
+const STALE_MS = 2 * 60 * 1000;   // 面板電腦超過 2 分鐘沒送資料 → 紅字
 
 // 10 張字卡：名稱、包含的類別、固定 Total、Target、Minimum（照 Makara Targets 設定）
 const GROUPS = [
@@ -116,15 +117,15 @@ const STATES = [
 // ============================================================
 const I18N = {
   es:{ title:'CCT · Estado de Equipos', total:'Total', target:'Meta', vs:'VS META',
-       upd:'Actualizado', err:'Sin conexión · último dato', wait:'Cargando…',
+       upd:'Actualizado (cada 30 s)', err:'Sin conexión · último dato', stale:'Sin datos del panel', wait:'Cargando…',
        st:{ 'Available':'Disponible','Running':'En operación','Emergency Maintenance':'Mant. de emergencia',
             'Planned Maintenance':'Mant. planificado','Damaged':'Dañado','Out Of Service':'Fuera de servicio' } },
   zh:{ title:'CCT · 車機狀態', total:'總數', target:'目標', vs:'對比目標',
-       upd:'更新於', err:'連線中斷 · 最後資料', wait:'載入中…',
+       upd:'更新於（每30秒更新）', err:'連線中斷 · 最後資料', stale:'面板電腦無資料', wait:'載入中…',
        st:{ 'Available':'可用','Running':'運轉中','Emergency Maintenance':'緊急維修',
             'Planned Maintenance':'計畫保養','Damaged':'損壞','Out Of Service':'停用' } },
   en:{ title:'CCT · Equipment Status', total:'Total', target:'Target', vs:'VS TARGET',
-       upd:'Updated', err:'Offline · last data', wait:'Loading…',
+       upd:'Updated (every 30 s)', err:'Offline · last data', stale:'No panel data', wait:'Loading…',
        st:{ 'Available':'Available','Running':'Running','Emergency Maintenance':'Emergency Maintenance',
             'Planned Maintenance':'Planned Maintenance','Damaged':'Damaged','Out Of Service':'Out of Service' } }
 };
@@ -139,6 +140,7 @@ if (!I18N[lang]) lang = 'es';
 const board = document.getElementById('board');
 let lastCounts = null;   // 上一次各卡各狀態數字（用來判斷閃爍）
 let lastOk = null;       // 最後一次成功取得資料的時間
+let dataAt = null;       // 面板電腦最後一次送資料的時間（GAS 的 updatedAt）
 let failed = false;
 
 function buildCards(){
@@ -214,13 +216,15 @@ function showUpd(){
   const T  = I18N[lang];
   const el = document.getElementById('upd');
   if (!lastOk) { el.textContent = failed ? T.err : T.wait; el.classList.toggle('err', failed); return; }
-  const t = lastOk.toLocaleTimeString('es-PA', { hour12:false });
-  el.innerHTML = failed ? `${T.err}<br>${t}` : `${T.upd}<br>${t}`;
-  el.classList.toggle('err', failed);
+  const when  = dataAt || lastOk;
+  const t     = when.toLocaleTimeString('es-PA', { hour12:false });
+  const stale = !!dataAt && (Date.now() - dataAt.getTime() > STALE_MS);
+  el.innerHTML = failed ? `${T.err}<br>${t}` : stale ? `${T.stale}<br>${t}` : `${T.upd}<br>${t}`;
+  el.classList.toggle('err', failed || stale);
 }
 
 // ============================================================
-// 取資料（每 5 秒；上一次還沒回來就不重複發）
+// 取資料（每 30 秒；上一次還沒回來就不重複發）
 // ============================================================
 let busy = false;
 async function poll(){
@@ -234,6 +238,8 @@ async function poll(){
     render(counts, false);
     lastCounts = counts;
     lastOk = new Date();
+    const d = data.updatedAt ? new Date(data.updatedAt) : null;
+    dataAt = d && !isNaN(d) ? d : null;
     failed = false;
   } catch (e) {
     failed = true;
